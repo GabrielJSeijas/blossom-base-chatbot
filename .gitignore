@@ -1,3 +1,9 @@
-echo "node_modules/
+node_modules/
+frontend-mobile/node_modules/
+frontend-admin/node_modules/
+backend/node_modules/
+
+.expo/
+frontend-mobile/.expo/
+
 .env
-.DS_Store" > .gitignore
