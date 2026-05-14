@@ -10,13 +10,26 @@ import {
   Platform,
   SafeAreaView,
 } from "react-native";
+import Constants from "expo-constants";
 
 type ChatMessage = {
   sender: "user" | "bot";
   text: string;
 };
 
-const API_URL = `${process.env.EXPO_PUBLIC_API_URL}/chat`;
+const getApiUrl = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+
+  if (!hostUri) {
+    return "http://localhost:8001/chat";
+  }
+
+  const host = hostUri.split(":")[0];
+
+  return `http://${host}:8001/chat`;
+};
+
+const API_URL = getApiUrl();
 
 export default function HomeScreen() {
   const [message, setMessage] = useState("");
