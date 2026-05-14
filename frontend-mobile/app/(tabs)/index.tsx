@@ -16,7 +16,7 @@ type ChatMessage = {
   text: string;
 };
 
-const API_URL = "http://192.168.1.5:3000/chat";
+const API_URL = "http://192.168.1.5:8001/chat";
 
 export default function HomeScreen() {
   const [message, setMessage] = useState("");
