@@ -5,6 +5,8 @@
 
 ## Instrucciones
 
+### Backend
+
 Para levantar y correr el backend es necesario seguir los siguientes pasos:
 
 1. Asegurarse de que se tienen todas las variables en el archivo **backend/.env** y tener Node.js instalado.
@@ -16,6 +18,10 @@ Para levantar y correr el backend es necesario seguir los siguientes pasos:
 3. Finalmente correr el backend con el comando:
   ```bash
   npm run start
+  ```
+4. Para probar que el backend recibe con éxito mensajes del llm usamos:
+  ```bash
+  npm run demo
   ```
 
 ## Desarrolladores
