@@ -16,7 +16,7 @@ type ChatMessage = {
   text: string;
 };
 
-const API_URL = "http://localhost:8001/chat";
+const API_URL = `${process.env.EXPO_PUBLIC_API_URL}/chat`;
 
 export default function HomeScreen() {
   const [message, setMessage] = useState("");
@@ -27,11 +27,13 @@ export default function HomeScreen() {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
 
   const sendMessage = async () => {
     if (!message.trim() || isLoading) return;
 
     const userMessage = message.trim();
+    setShowIntro(false);
 
     setMessages((prev) => [
       ...prev,
@@ -103,12 +105,21 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <View style={styles.introCard}>
-            <Text style={styles.introTitle}>Welcome to Blossom</Text>
-            <Text style={styles.introText}>
-              Send a message and receive supportive guidance from the assistant.
-            </Text>
-          </View>
+          {showIntro && (
+            <View style={styles.introCard}>
+              <Pressable
+                style={styles.closeIntroButton}
+                onPress={() => setShowIntro(false)}
+              >
+                <Text style={styles.closeIntroText}>×</Text>
+              </Pressable>
+
+              <Text style={styles.introTitle}>Welcome to Blossom</Text>
+              <Text style={styles.introText}>
+                Send a message and receive supportive guidance from the assistant.
+              </Text>
+            </View>
+          )}
 
           <ScrollView
             style={styles.chatContainer}
@@ -289,6 +300,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.18)",
+    },
+    closeIntroButton: {
+    position: "absolute",
+    top: 12,
+    right: 14,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
+  },
+  closeIntroText: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 24,
   },
   introTitle: {
     color: "#FFFFFF",
