@@ -16,7 +16,7 @@ type ChatMessage = {
   text: string;
 };
 
-const API_URL = "http://192.168.1.5:8001/chat";
+const API_URL = "http://localhost:8001/chat";
 
 export default function HomeScreen() {
   const [message, setMessage] = useState("");
@@ -61,10 +61,13 @@ export default function HomeScreen() {
         ...prev,
         {
           sender: "bot",
-          text: data.response || data.message || "I received your message.",
+          text:
+            data.response ||
+            data.message ||
+            "I received your message.",
         },
       ]);
-    } catch (error) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {

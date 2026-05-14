@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Dependencies
 node_modules/
 */node_modules/
@@ -59,4 +58,3 @@ desktop.ini
 .cache/
 .eslintcache
 *.tsbuildinfo
->>>>>>> feature/mobile-chat
