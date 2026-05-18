@@ -1,7 +1,31 @@
 import { ObjectId } from 'mongodb';
-import { encryptMessage } from '../crypto/messageCrypto.js';
+import { decryptMessage, encryptMessage } from '../crypto/messageCrypto.js';
 import { getMessagesCollection } from '../db/mongoClient.js';
 import { sendMessage } from '../llm/llmProvider.js';
+
+function parseUserId(res, userId) {
+	if (!userId) {
+		res.status(401).json({ error: 'Usuario no autenticado.' });
+		return null;
+	}
+
+	if (!ObjectId.isValid(userId)) {
+		res.status(400).json({ error: 'Token inválido: userId no válido.' });
+		return null;
+	}
+
+	return new ObjectId(userId);
+}
+
+function formatMessageDocument(messageDocument) {
+	return {
+		id: String(messageDocument._id),
+		conversationId: String(messageDocument.conversationId),
+		sender: messageDocument.role === 'assistant' ? 'bot' : 'user',
+		text: decryptMessage(messageDocument.content),
+		createdAt: messageDocument.createdAt,
+	};
+}
 
 export async function chatController(req, res) {
 	try {
@@ -10,13 +34,9 @@ export async function chatController(req, res) {
 		const normalizedMessage = String(message ?? '').trim();
 		const userId = String(req.authUser?.sub || '').trim();
 
-		if (!userId) {
-			res.status(401).json({ error: 'Usuario no autenticado.' });
-			return;
-		}
+		const userObjectId = parseUserId(res, userId);
 
-		if (!ObjectId.isValid(userId)) {
-			res.status(400).json({ error: 'Token inválido: userId no válido.' });
+		if (!userObjectId) {
 			return;
 		}
 
@@ -33,7 +53,7 @@ export async function chatController(req, res) {
 		await getMessagesCollection().insertMany([
 			{
 				conversationId,
-				userId: new ObjectId(userId),
+				userId: userObjectId,
 				role: 'user',
 				content: storedMessage,
 				createdAt: now,
@@ -41,7 +61,7 @@ export async function chatController(req, res) {
 			},
 			{
 				conversationId,
-				userId: new ObjectId(userId),
+				userId: userObjectId,
 				role: 'assistant',
 				content: storedReply,
 				createdAt: now,
@@ -52,5 +72,30 @@ export async function chatController(req, res) {
 		res.json({ response: reply, conversationId: String(conversationId) });
 	} catch (error) {
 		res.status(500).json({ error: error.message || 'Error procesando el chat.' });
+	}
+}
+
+export async function getChatHistoryController(req, res) {
+	try {
+		const userId = String(req.authUser?.sub || '').trim();
+		const userObjectId = parseUserId(res, userId);
+
+		if (!userObjectId) {
+			return;
+		}
+		const messagesCollection = getMessagesCollection();
+
+		const storedMessages = await messagesCollection
+			.find({ userId: userObjectId })
+			.sort({ createdAt: 1, _id: 1 })
+			.toArray();
+
+		const messages = storedMessages.map(formatMessageDocument);
+		const latestConversationId =
+			messages.length > 0 ? messages[messages.length - 1].conversationId : null;
+
+		res.json({ messages, latestConversationId });
+	} catch (error) {
+		res.status(500).json({ error: error.message || 'No se pudo cargar el historial.' });
 	}
 }

@@ -25,6 +25,20 @@ type LoggedUser = {
   displayName?: string | null;
 };
 
+type HistoryMessage = {
+  id: string;
+  conversationId: string;
+  sender: ChatMessage["sender"];
+  text: string;
+};
+
+const defaultMessages: ChatMessage[] = [
+  {
+    sender: "bot",
+    text: "Hi, I'm Blossom. How are you feeling today?",
+  },
+];
+
 const getApiBaseUrl = () => {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
 
@@ -118,18 +132,46 @@ export default function HomeScreen() {
         return;
       }
 
-      setAuthToken(data.token || "");
+      const nextToken = data.token || "";
+      setAuthToken(nextToken);
       setLoggedUser(data.user || null);
       setPassword("");
       setDisplayName("");
-      setMessages([
-        {
-          sender: "bot",
-          text: "Hi, I'm Blossom. How are you feeling today?",
-        },
-      ]);
-      setConversationId(null);
-      setShowIntro(true);
+
+      if (nextToken) {
+        try {
+          const historyResponse = await fetch(`${API_BASE_URL}/chat/history`, {
+            headers: {
+              Authorization: `Bearer ${nextToken}`,
+            },
+          });
+
+          const historyData = await historyResponse.json();
+
+          if (!historyResponse.ok) {
+            throw new Error(historyData?.error || "No se pudo cargar el historial.");
+          }
+
+          const historyMessages = Array.isArray(historyData?.messages)
+            ? (historyData.messages as HistoryMessage[])
+            : [];
+
+          setMessages(
+            historyMessages.length > 0
+              ? historyMessages.map((item) => ({
+                  sender: item.sender,
+                  text: item.text,
+                }))
+              : defaultMessages
+          );
+          setConversationId(historyData?.latestConversationId || null);
+          setShowIntro(historyMessages.length === 0);
+        } catch {
+          setMessages(defaultMessages);
+          setConversationId(null);
+          setShowIntro(true);
+        }
+      }
     } catch {
       setAuthError("No se pudo conectar con el backend.");
     } finally {
@@ -142,12 +184,8 @@ export default function HomeScreen() {
     setLoggedUser(null);
     setConversationId(null);
     setMessage("");
-    setMessages([
-      {
-        sender: "bot",
-        text: "Hi, I'm Blossom. How are you feeling today?",
-      },
-    ]);
+    setMessages(defaultMessages);
+    setShowIntro(true);
   };
 
   const sendMessage = async () => {

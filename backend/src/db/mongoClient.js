@@ -3,6 +3,10 @@ import { MongoClient } from 'mongodb';
 let client;
 let database;
 
+function getDatabaseName() {
+	return String(process.env.MONGODB_DB_NAME || 'blossomlocal').trim();
+}
+
 function createClient(uri) {
 	return new MongoClient(uri, {
 		tls: true,
@@ -25,7 +29,7 @@ export async function connectMongo(uri) {
 	}
 
 	await client.connect();
-	database = client.db();
+	database = client.db(getDatabaseName());
 
 	return database;
 }
