@@ -17,6 +17,21 @@ function getTokenSecret() {
 	return secret;
 }
 
+export function getAuthConfigWarning() {
+	const authSecret = String(process.env.AUTH_TOKEN_SECRET || '').trim();
+	const messageSecret = String(process.env.MESSAGE_ENC_KEY_V1 || '').trim();
+
+	if (!authSecret) {
+		return 'AUTH_TOKEN_SECRET no está definido. Se usará MESSAGE_ENC_KEY_V1 como fallback.';
+	}
+
+	if (messageSecret && authSecret === messageSecret) {
+		return 'AUTH_TOKEN_SECRET y MESSAGE_ENC_KEY_V1 tienen el mismo valor. Usa secretos distintos.';
+	}
+
+	return '';
+}
+
 export function hashPassword(plainPassword) {
 	const password = String(plainPassword || '');
 

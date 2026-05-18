@@ -15,16 +15,21 @@ Para levantar y correr el backend es necesario seguir los siguientes pasos:
    node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
    ```
    Copia ese valor en `backend/.env` como `MESSAGE_ENC_KEY_V1`.
-3. Luego movernos a la carpeta _backend_ e instalar las dependencias con `pnpm`:
+3. Generar un secreto separado para firmar tokens de autenticación:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+  ```
+  Copia ese valor en `backend/.env` como `AUTH_TOKEN_SECRET`.
+4. Luego movernos a la carpeta _backend_ e instalar las dependencias con `pnpm`:
    ```bash
    cd backend
    pnpm install
    ```
-4. Finalmente correr el backend con el comando:
+5. Finalmente correr el backend con el comando:
   ```bash
   pnpm start
   ```
-5. Para probar que el backend recibe con éxito mensajes del llm usamos:
+6. Para probar que el backend recibe con éxito mensajes del llm usamos:
   ```bash
   pnpm demo
   ```

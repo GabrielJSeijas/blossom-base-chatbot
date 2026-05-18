@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { getAuthConfigWarning } from './auth/authService.js';
 import { validateMessageEncryptionConfig } from './crypto/messageCrypto.js';
 import { closeMongoConnection, connectMongo } from './db/mongoClient.js';
 import authRoutes from './routes/auth.js';
@@ -24,6 +25,12 @@ app.use('/auth', authRoutes);
 app.use('/chat', chatRoutes);
 
 async function main() {
+  const authConfigWarning = getAuthConfigWarning();
+
+  if (authConfigWarning) {
+    console.warn(`Auth config warning: ${authConfigWarning}`);
+  }
+
   try {
     validateMessageEncryptionConfig();
   } catch (error) {
