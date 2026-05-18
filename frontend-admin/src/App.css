@@ -1,0 +1,233 @@
+/* 🌸 BLOSSOM THEME - JERARQUÍA VISUAL CLARA */
+
+:root {
+  /* 1. Fondo general (oscuro profundo) */
+  --bg-general: #152238;
+  
+  /* 2. Área del chat (azul medio/claro para contraste) */
+  --bg-chat: #2A3C55;
+  
+  /* 3. Globos del bot (más claro que el área de chat) */
+  --bg-bot: #3D5A7C;
+  
+  /* 4. Globos del usuario (color marca Salmón/Coral) */
+  --bg-user: #FF9B8A;
+  
+  /* 5. Textos */
+  --text-white: #FFFFFF;
+  --text-bot: #E8F0F8;      /* Blanco suave para lectura prolongada */
+  --text-user: #FFFFFF;
+  
+  /* 6. Acentos (botones, bordes) */
+  --accent: #FF9B8A;
+  --accent-hover: #FF8570;
+  --border-subtle: rgba(255, 255, 255, 0.1);
+}
+
+/* Reset y Fondo General */
+* { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+  font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif; 
+}
+
+body { 
+  background-color: var(--bg-general); 
+  color: var(--text-white); 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+/* Contenedor Principal */
+.admin-chat-container {
+  width: 90%;
+  max-width: 900px; 
+  height: 90vh; 
+  background-color: var(--bg-chat); /* 🔹 ÁREA DE CHAT: Azul medio */
+  border-radius: 20px; 
+  box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+  display: flex; 
+  flex-direction: column; 
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+
+/* Cabecera (Texto blanco y nítido) */
+.chat-header {
+  padding: 1.5rem 2rem; 
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.chat-header h2 { 
+  font-size: 1.4rem; 
+  font-weight: 700; 
+  color: var(--text-white); /* ✅ BLANCO PURO PARA MÁXIMA LECTURA */
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3); /* Sutil sombra para evitar fatiga visual */
+}
+
+.chat-header small {
+  color: #A0B4C8;
+  font-size: 0.8rem;
+  display: block;
+  margin-top: 4px;
+}
+
+.status {
+  padding: 0.4rem 0.8rem; 
+  border-radius: 50px; 
+  font-size: 0.75rem; 
+  font-weight: 700; 
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status.ready { 
+  background: rgba(76, 175, 80, 0.15); 
+  color: #81C784; 
+  border: 1px solid #81C784;
+}
+
+.status.loading { 
+  background: rgba(255, 152, 0, 0.15); 
+  color: #FFB74D; 
+  border: 1px solid #FFB74D;
+}
+
+/* Área de Mensajes */
+.messages-container {
+  flex: 1; 
+  padding: 2rem; 
+  overflow-y: auto; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 1.2rem;
+  background-color: var(--bg-chat); /* Mantiene el azul medio uniforme */
+}
+
+.empty-state { 
+  text-align: center; 
+  color: #A0B4C8; 
+  padding: 4rem 1rem;
+  border: 2px dashed var(--border-subtle); 
+  border-radius: 12px; 
+  background: rgba(0,0,0,0.1);
+}
+
+.empty-state p { font-size: 1.05rem; }
+
+/* Burbujas de Chat */
+.message { 
+  max-width: 75%; 
+  padding: 1rem 1.2rem; 
+  border-radius: 16px; 
+  line-height: 1.6;
+  font-size: 0.95rem;
+  animation: fadeIn 0.3s ease;
+  position: relative;
+}
+
+/* 👤 Usuario (Salmón marca) */
+.message.user { 
+  align-self: flex-end; 
+  background: var(--bg-user); 
+  color: var(--text-user);
+  border-bottom-right-radius: 4px; 
+  box-shadow: 0 4px 12px rgba(255, 155, 138, 0.25);
+}
+
+/* 🤖 Bot (Azul más claro que el fondo) */
+.message.bot { 
+  align-self: flex-start; 
+  background: var(--bg-bot); /* 🔹 GLOBO BOT: Más claro que el área */
+  color: var(--text-bot); 
+  border-bottom-left-radius: 4px; 
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.message strong { 
+  display: block; 
+  font-size: 0.7rem; 
+  margin-bottom: 0.3rem; 
+  opacity: 0.6; 
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Área de Input */
+.input-area {
+  padding: 1.5rem 2rem; 
+  border-top: 1px solid var(--border-subtle);
+  display: flex; 
+  gap: 1rem; 
+  background: var(--bg-chat);
+}
+
+.input-area input {
+  flex: 1; 
+  padding: 1rem 1.2rem; 
+  background: #FFFFFF; /* Campo blanco como en tu captura */
+  color: #152238; 
+  border: none; 
+  border-radius: 12px; 
+  font-size: 1rem; 
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.input-area input:focus { 
+  outline: 2px solid var(--accent);
+}
+
+/* Botón Enviar (Coral marca) */
+.input-area button {
+  padding: 0 2rem; 
+  background: var(--accent); 
+  color: #fff; 
+  border: none; 
+  border-radius: 12px; 
+  font-size: 1rem; 
+  font-weight: 700;
+  cursor: pointer; 
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 155, 138, 0.3);
+}
+
+.input-area button:hover:not(:disabled) { 
+  background: var(--accent-hover); 
+  transform: translateY(-1px);
+}
+
+.input-area button:disabled { 
+  background: #5A6B80; 
+  cursor: not-allowed; 
+  opacity: 0.6;
+}
+
+/* Animación */
+@keyframes fadeIn { 
+  from { opacity: 0; transform: translateY(10px); } 
+  to { opacity: 1; transform: translateY(0); } 
+}
+
+/* Scrollbar suave para modo oscuro */
+.messages-container::-webkit-scrollbar { width: 8px; }
+.messages-container::-webkit-scrollbar-track { background: transparent; }
+.messages-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+.messages-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+/* Responsive */
+@media(max-width: 700px){
+  .admin-chat-container { width: 100%; height: 100vh; border-radius: 0; }
+  .message { max-width: 85%; }
+  .input-area { padding: 1rem; }
+}/* dev2-update */ 
+/* dev2-update */ 
+/* dev2-update */ 
