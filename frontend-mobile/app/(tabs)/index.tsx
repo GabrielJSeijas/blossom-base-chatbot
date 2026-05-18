@@ -221,6 +221,10 @@ export default function HomeScreen() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data?.conversationId) {
+          setConversationId(data.conversationId);
+        }
+
         throw new Error(data?.error || "No se pudo enviar el mensaje.");
       }
 
