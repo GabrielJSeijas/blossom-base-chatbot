@@ -11,6 +11,7 @@ const port = Number(process.env.PORT) || 8000;
 const uri = process.env.MONGODB_URI;
 const shouldLogStartup = process.env.SUPPRESS_STARTUP_LOGS !== 'true';
 let server;
+let mongoConnected = false;
 
 app.use(cors());
 app.use(express.json());
@@ -25,15 +26,23 @@ app.use('/chat', chatRoutes);
 async function main() {
   try {
     validateMessageEncryptionConfig();
-    await connectMongo(uri);
-    if (shouldLogStartup) {
-      console.log('Connected to MongoDB successfully.');
-    }
   } catch (error) {
-    console.error('MongoDB connection failed:', error.message);
-    console.error('Revisa usuario, contraseña, permisos del usuario en Atlas y la allowlist de IP.');
-    process.exitCode = 1;
-    return;
+    console.warn('Message encryption config warning:', error.message);
+  }
+
+  if (uri) {
+    try {
+      await connectMongo(uri);
+      mongoConnected = true;
+      if (shouldLogStartup) {
+        console.log('Connected to MongoDB successfully.');
+      }
+    } catch (error) {
+      console.warn('MongoDB connection failed, continuing without DB:', error.message);
+      console.warn('Revisa usuario, contraseña, permisos del usuario en Atlas y la allowlist de IP.');
+    }
+  } else {
+    console.warn('MONGODB_URI not set; starting backend without MongoDB connection.');
   }
 
   server = app.listen(port, () => {
@@ -59,13 +68,13 @@ async function shutdown(signal) {
   process.stdin.pause();
 
   if (!server) {
-    await closeMongoConnection();
+    if (mongoConnected) await closeMongoConnection();
     process.exit(process.exitCode ?? 0);
     return;
   }
 
   server.close(() => {
-    closeMongoConnection().finally(() => {
+    (mongoConnected ? closeMongoConnection() : Promise.resolve()).finally(() => {
       process.exit(process.exitCode ?? 0);
     });
   });
