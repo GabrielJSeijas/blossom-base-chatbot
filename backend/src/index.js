@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { validateMessageEncryptionConfig } from './crypto/messageCrypto.js';
 import { closeMongoConnection, connectMongo } from './db/mongoClient.js';
+import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 
 const app = express();
@@ -18,6 +19,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use('/auth', authRoutes);
 app.use('/chat', chatRoutes);
 
 async function main() {

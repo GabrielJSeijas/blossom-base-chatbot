@@ -42,6 +42,14 @@ export function getConversationsCollection() {
 	return getDatabase().collection('conversations');
 }
 
+export function getUsersCollection() {
+	return getDatabase().collection('users');
+}
+
+export function getMessagesCollection() {
+	return getDatabase().collection('messages');
+}
+
 export async function closeMongoConnection() {
 	if (!client) {
 		return;
