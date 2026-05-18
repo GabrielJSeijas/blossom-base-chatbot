@@ -10,19 +10,31 @@
 Para levantar y correr el backend es necesario seguir los siguientes pasos:
 
 1. Asegurarse de que se tienen todas las variables en el archivo **backend/.env** y tener Node.js instalado.
-2. Luego movernos a la carpeta _backend_ e instalar las dependencias con:
+2. Generar una clave local para cifrar mensajes:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+   ```
+   Copia ese valor en `backend/.env` como `MESSAGE_ENC_KEY_V1`.
+3. Generar un secreto separado para firmar tokens de autenticación:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+  ```
+  Copia ese valor en `backend/.env` como `AUTH_TOKEN_SECRET`.
+4. Luego movernos a la carpeta _backend_ e instalar las dependencias con `pnpm`:
    ```bash
    cd backend
-   npm install
+   pnpm install
    ```
-3. Finalmente correr el backend con el comando:
+5. Finalmente correr el backend con el comando:
   ```bash
-  npm run start
+  pnpm start
   ```
-4. Para probar que el backend recibe con éxito mensajes del llm usamos:
+6. Para probar que el backend recibe con éxito mensajes del llm usamos:
   ```bash
-  npm run demo
+  pnpm demo
   ```
+
+El backend guarda las conversaciones en MongoDB con el contenido cifrado en reposo. El texto plano solo vive en memoria el tiempo necesario para consultar al LLM.
 
 ## Desarrolladores
 

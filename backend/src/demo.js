@@ -53,6 +53,37 @@ async function runDemo() {
 
 	console.log('Mandando un mensaje de prueba con contenido "holaa"');
 
+	const unique = Date.now();
+	const email = `demo-${unique}@blossom.dev`;
+	const password = 'DemoPass1234';
+	let token;
+
+	try {
+		const registerResponse = await fetch(`${baseUrl}/auth/register`, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+			},
+			body: JSON.stringify({
+				email,
+				password,
+				displayName: 'Demo User',
+			}),
+		});
+
+		const registerJson = await registerResponse.json();
+
+		if (!registerResponse.ok) {
+			throw new Error(registerJson?.error || 'No se pudo registrar usuario demo.');
+		}
+
+		token = registerJson?.token;
+	} catch (error) {
+		console.error('Error creando usuario demo:');
+		console.error(error?.stack || error?.message || error);
+		throw error;
+	}
+
 	let response;
 
 	try {
@@ -60,6 +91,7 @@ async function runDemo() {
 			method: 'POST',
 			headers: {
 				'content-type': 'application/json',
+				Authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify({ message: 'holaa' }),
 		});

@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
-import { MongoClient } from 'mongodb';
 import cors from 'cors';
+import { getAuthConfigWarning } from './auth/authService.js';
+import { validateMessageEncryptionConfig } from './crypto/messageCrypto.js';
+import { closeMongoConnection, connectMongo } from './db/mongoClient.js';
+import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 
 const app = express();
@@ -9,20 +12,7 @@ const port = Number(process.env.PORT) || 8000;
 const uri = process.env.MONGODB_URI;
 const shouldLogStartup = process.env.SUPPRESS_STARTUP_LOGS !== 'true';
 let server;
-
-if (!uri) {
-  console.error('Falta la variable de entorno MONGODB_URI.');
-  process.exitCode = 1;
-  process.exit();
-}
-
-const client = new MongoClient(uri, {
-  tls: true,
-  serverSelectionTimeoutMS: 3000,
-  autoSelectFamily: false,
-});
-
-let dbConnected = false;
+let mongoConnected = false;
 
 app.use(cors());
 app.use(express.json());
@@ -31,22 +21,35 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use('/auth', authRoutes);
 app.use('/chat', chatRoutes);
 
 async function main() {
+  const authConfigWarning = getAuthConfigWarning();
+
+  if (authConfigWarning) {
+    console.warn(`Auth config warning: ${authConfigWarning}`);
+  }
+
   try {
+    validateMessageEncryptionConfig();
+  } catch (error) {
+    console.warn('Message encryption config warning:', error.message);
+  }
+
+  if (uri) {
     try {
-      await client.connect();
-      dbConnected = true;
+      await connectMongo(uri);
+      mongoConnected = true;
       if (shouldLogStartup) {
         console.log('Connected to MongoDB successfully.');
       }
     } catch (error) {
-      console.error('MongoDB connection failed at startup:', error?.message || error);
-      dbConnected = false;
+      console.warn('MongoDB connection failed, continuing without DB:', error.message);
+      console.warn('Revisa usuario, contraseña, permisos del usuario en Atlas y la allowlist de IP.');
     }
-  } catch (error) {
-    console.error('Unexpected error during startup:', error?.stack || error?.message || error);
+  } else {
+    console.warn('MONGODB_URI not set; starting backend without MongoDB connection.');
   }
 
   server = app.listen(port, () => {
@@ -71,22 +74,16 @@ async function shutdown(signal) {
 
   process.stdin.pause();
 
-  if (dbConnected) {
-    try {
-      await client.close();
-      if (shouldLogStartup) console.log('MongoDB client cerrado correctamente.');
-    } catch (err) {
-      console.error('Error cerrando el cliente MongoDB:', err?.stack || err?.message || err);
-    }
-  }
-
   if (!server) {
+    if (mongoConnected) await closeMongoConnection();
     process.exit(process.exitCode ?? 0);
     return;
   }
 
   server.close(() => {
-    process.exit(process.exitCode ?? 0);
+    (mongoConnected ? closeMongoConnection() : Promise.resolve()).finally(() => {
+      process.exit(process.exitCode ?? 0);
+    });
   });
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,21 +17,58 @@ type ChatMessage = {
   text: string;
 };
 
-const getApiUrl = () => {
+type AuthMode = "login" | "register";
+
+type LoggedUser = {
+  id: string;
+  email: string;
+  displayName?: string | null;
+};
+
+type HistoryMessage = {
+  id: string;
+  conversationId: string;
+  sender: ChatMessage["sender"];
+  text: string;
+};
+
+const defaultMessages: ChatMessage[] = [
+  {
+    sender: "bot",
+    text: "Hi, I'm Blossom. How are you feeling today?",
+  },
+];
+
+const getApiBaseUrl = () => {
+  const fromEnv = process.env.EXPO_PUBLIC_API_URL;
+
+  if (fromEnv) {
+    return fromEnv.replace(/\/$/, "");
+  }
+
   const hostUri = Constants.expoConfig?.hostUri;
 
   if (!hostUri) {
-    return "http://localhost:8001/chat";
+    return "http://localhost:8001";
   }
 
   const host = hostUri.split(":")[0];
 
-  return `http://${host}:8001/chat`;
+  return `http://${host}:8001`;
 };
 
-const API_URL = getApiUrl();
+const API_BASE_URL = getApiBaseUrl();
 
 export default function HomeScreen() {
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [authToken, setAuthToken] = useState("");
+  const [loggedUser, setLoggedUser] = useState<LoggedUser | null>(null);
+  const [authError, setAuthError] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -41,9 +78,118 @@ export default function HomeScreen() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
+  const isLoggedIn = Boolean(authToken && loggedUser);
+
+  const userLabel = useMemo(() => {
+    if (!loggedUser) {
+      return "B";
+    }
+
+    const label = loggedUser.displayName || loggedUser.email;
+    return label.charAt(0).toUpperCase();
+  }, [loggedUser]);
+
+  const handleAuth = async () => {
+    if (isAuthLoading) return;
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = password.trim();
+    const normalizedDisplayName = displayName.trim();
+
+    if (!normalizedEmail || !normalizedPassword) {
+      setAuthError("Email y contraseña son obligatorios.");
+      return;
+    }
+
+    if (authMode === "register" && normalizedPassword.length < 8) {
+      setAuthError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    setIsAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const endpoint = authMode === "register" ? "/auth/register" : "/auth/login";
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+          password: normalizedPassword,
+          displayName: normalizedDisplayName || undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setAuthError(data?.error || "No se pudo autenticar.");
+        return;
+      }
+
+      const nextToken = data.token || "";
+      setAuthToken(nextToken);
+      setLoggedUser(data.user || null);
+      setPassword("");
+      setDisplayName("");
+
+      if (nextToken) {
+        try {
+          const historyResponse = await fetch(`${API_BASE_URL}/chat/history`, {
+            headers: {
+              Authorization: `Bearer ${nextToken}`,
+            },
+          });
+
+          const historyData = await historyResponse.json();
+
+          if (!historyResponse.ok) {
+            throw new Error(historyData?.error || "No se pudo cargar el historial.");
+          }
+
+          const historyMessages = Array.isArray(historyData?.messages)
+            ? (historyData.messages as HistoryMessage[])
+            : [];
+
+          setMessages(
+            historyMessages.length > 0
+              ? historyMessages.map((item) => ({
+                  sender: item.sender,
+                  text: item.text,
+                }))
+              : defaultMessages
+          );
+          setConversationId(historyData?.latestConversationId || null);
+          setShowIntro(historyMessages.length === 0);
+        } catch {
+          setMessages(defaultMessages);
+          setConversationId(null);
+          setShowIntro(true);
+        }
+      }
+    } catch {
+      setAuthError("No se pudo conectar con el backend.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setAuthToken("");
+    setLoggedUser(null);
+    setConversationId(null);
+    setMessage("");
+    setMessages(defaultMessages);
+    setShowIntro(true);
+  };
 
   const sendMessage = async () => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading || !authToken) return;
 
     const userMessage = message.trim();
     setShowIntro(false);
@@ -60,17 +206,31 @@ export default function HomeScreen() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           message: userMessage,
+          conversationId,
         }),
       });
 
       const data = await response.json();
+
+      if (!response.ok) {
+        if (data?.conversationId) {
+          setConversationId(data.conversationId);
+        }
+
+        throw new Error(data?.error || "No se pudo enviar el mensaje.");
+      }
+
+      if (data?.conversationId) {
+        setConversationId(data.conversationId);
+      }
 
       setMessages((prev) => [
         ...prev,
@@ -82,12 +242,15 @@ export default function HomeScreen() {
             "I received your message.",
         },
       ]);
-    } catch {
+    } catch (error) {
       setMessages((prev) => [
         ...prev,
         {
           sender: "bot",
-          text: "Sorry, I couldn't connect to the server.",
+          text:
+            error instanceof Error
+              ? error.message
+              : "Sorry, I couldn't connect to the server.",
         },
       ]);
     } finally {
@@ -110,15 +273,94 @@ export default function HomeScreen() {
           <View style={styles.header}>
             <View>
               <Text style={styles.logo}>✿ Blossom</Text>
-              <Text style={styles.subtitle}>Emotional support chat</Text>
+              <Text style={styles.subtitle}>
+                {isLoggedIn
+                  ? `Sesión: ${loggedUser?.email}`
+                  : "Emotional support chat"}
+              </Text>
             </View>
 
             <View style={styles.avatar}>
-              <Text style={styles.avatarText}>B</Text>
+              <Text style={styles.avatarText}>{userLabel}</Text>
             </View>
           </View>
 
-          {showIntro && (
+          {!isLoggedIn && (
+            <View style={styles.authCard}>
+              <Text style={styles.authTitle}>
+                {authMode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+              </Text>
+
+              <TextInput
+                style={styles.authInput}
+                placeholder="Email"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                placeholderTextColor="#9A9A9A"
+                value={email}
+                onChangeText={setEmail}
+              />
+
+              {authMode === "register" && (
+                <TextInput
+                  style={styles.authInput}
+                  placeholder="Nombre para mostrar"
+                  placeholderTextColor="#9A9A9A"
+                  value={displayName}
+                  onChangeText={setDisplayName}
+                />
+              )}
+
+              <TextInput
+                style={styles.authInput}
+                placeholder="Contraseña"
+                secureTextEntry
+                placeholderTextColor="#9A9A9A"
+                value={password}
+                onChangeText={setPassword}
+              />
+
+              {!!authError && <Text style={styles.authError}>{authError}</Text>}
+
+              <Pressable
+                style={[styles.authButton, isAuthLoading && styles.sendButtonDisabled]}
+                onPress={handleAuth}
+                disabled={isAuthLoading}
+              >
+                <Text style={styles.authButtonText}>
+                  {isAuthLoading
+                    ? "Cargando..."
+                    : authMode === "login"
+                    ? "Entrar"
+                    : "Registrar"}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.switchModeButton}
+                onPress={() => {
+                  setAuthError("");
+                  setAuthMode((prev) => (prev === "login" ? "register" : "login"));
+                }}
+              >
+                <Text style={styles.switchModeText}>
+                  {authMode === "login"
+                    ? "¿No tienes cuenta? Regístrate"
+                    : "¿Ya tienes cuenta? Inicia sesión"}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {isLoggedIn && (
+            <View style={styles.sessionActions}>
+              <Pressable style={styles.logoutButton} onPress={handleLogout}>
+                <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {showIntro && isLoggedIn && (
             <View style={styles.introCard}>
               <Pressable
                 style={styles.closeIntroButton}
@@ -139,7 +381,15 @@ export default function HomeScreen() {
             contentContainerStyle={styles.chatContent}
             showsVerticalScrollIndicator={false}
           >
-            {messages.map((msg, index) => (
+            {!isLoggedIn && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  Registra o inicia sesión para comenzar a chatear y guardar tus mensajes.
+                </Text>
+              </View>
+            )}
+
+            {isLoggedIn && messages.map((msg, index) => (
               <View
                 key={index}
                 style={[
@@ -177,7 +427,7 @@ export default function HomeScreen() {
               </View>
             ))}
 
-            {isLoading && (
+            {isLoading && isLoggedIn && (
               <View style={[styles.messageRow, styles.botMessageRow]}>
                 <View style={styles.botIcon}>
                   <Text style={styles.botIconText}>✿</Text>
@@ -193,20 +443,25 @@ export default function HomeScreen() {
           <View style={styles.inputArea}>
             <TextInput
               style={styles.input}
-              placeholder="Write your message..."
+              placeholder={
+                isLoggedIn
+                  ? "Write your message..."
+                  : "Primero inicia sesión para chatear"
+              }
               placeholderTextColor="#9A9A9A"
               value={message}
               onChangeText={setMessage}
               multiline
+              editable={isLoggedIn}
             />
 
             <Pressable
               style={[
                 styles.sendButton,
-                isLoading && styles.sendButtonDisabled,
+                (isLoading || !isLoggedIn) && styles.sendButtonDisabled,
               ]}
               onPress={sendMessage}
-              disabled={isLoading}
+              disabled={isLoading || !isLoggedIn}
             >
               <Text style={styles.sendButtonText}>
                 {isLoading ? "..." : "Send"}
@@ -306,6 +561,72 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
+  authCard: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 22,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  authTitle: {
+    color: "#FFFFFF",
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 10,
+  },
+  authInput: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    minHeight: 46,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+    color: "#1D3458",
+  },
+  authError: {
+    color: "#FFD7D7",
+    marginBottom: 8,
+    fontWeight: "600",
+  },
+  authButton: {
+    backgroundColor: "#79F141",
+    borderRadius: 14,
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  authButtonText: {
+    color: "#1D3458",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  switchModeButton: {
+    marginTop: 10,
+    alignItems: "center",
+  },
+  switchModeText: {
+    color: "#D9E2F0",
+    fontWeight: "700",
+  },
+  sessionActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginBottom: 10,
+  },
+  logoutButton: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,255,255,0.25)",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  logoutButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+
   introCard: {
     backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 24,
@@ -349,6 +670,19 @@ const styles = StyleSheet.create({
   },
   chatContent: {
     paddingBottom: 18,
+  },
+  emptyState: {
+    paddingVertical: 28,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  emptyStateText: {
+    color: "#D9E2F0",
+    lineHeight: 22,
+    textAlign: "center",
   },
   messageRow: {
     flexDirection: "row",
