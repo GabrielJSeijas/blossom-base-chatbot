@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
-import { MongoClient } from 'mongodb';
 import cors from 'cors';
+import { validateMessageEncryptionConfig } from './crypto/messageCrypto.js';
+import { closeMongoConnection, connectMongo } from './db/mongoClient.js';
 import chatRoutes from './routes/chat.js';
 
 const app = express();
@@ -9,18 +10,6 @@ const port = Number(process.env.PORT) || 8000;
 const uri = process.env.MONGODB_URI;
 const shouldLogStartup = process.env.SUPPRESS_STARTUP_LOGS !== 'true';
 let server;
-
-if (!uri) {
-  console.error('Falta la variable de entorno MONGODB_URI.');
-  process.exitCode = 1;
-  process.exit();
-}
-
-const client = new MongoClient(uri, {
-  tls: true,
-  serverSelectionTimeoutMS: 3000,
-  autoSelectFamily: false,
-});
 
 app.use(cors());
 app.use(express.json());
@@ -33,7 +22,8 @@ app.use('/chat', chatRoutes);
 
 async function main() {
   try {
-    await client.connect();
+    validateMessageEncryptionConfig();
+    await connectMongo(uri);
     if (shouldLogStartup) {
       console.log('Connected to MongoDB successfully.');
     }
@@ -42,8 +32,6 @@ async function main() {
     console.error('Revisa usuario, contraseña, permisos del usuario en Atlas y la allowlist de IP.');
     process.exitCode = 1;
     return;
-  } finally {
-    await client.close();
   }
 
   server = app.listen(port, () => {
@@ -61,7 +49,7 @@ main().catch(error => {
   process.exitCode = 1;
 });
 
-function shutdown(signal) {
+async function shutdown(signal) {
   if (shouldLogStartup) {
     console.log(`Recibido ${signal}, cerrando backend...`);
   }
@@ -69,12 +57,15 @@ function shutdown(signal) {
   process.stdin.pause();
 
   if (!server) {
+    await closeMongoConnection();
     process.exit(process.exitCode ?? 0);
     return;
   }
 
   server.close(() => {
-    process.exit(process.exitCode ?? 0);
+    closeMongoConnection().finally(() => {
+      process.exit(process.exitCode ?? 0);
+    });
   });
 }
 
