@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,10 +6,11 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  SafeAreaView,
+  KeyboardAvoidingView,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 
 type ChatMessage = {
@@ -60,6 +61,7 @@ const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -79,6 +81,26 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const show = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    });
+    const hide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   const isLoggedIn = Boolean(authToken && loggedUser);
 
@@ -203,6 +225,7 @@ export default function HomeScreen() {
     ]);
 
     setMessage("");
+    Keyboard.dismiss();
     setIsLoading(true);
 
     try {
@@ -259,12 +282,12 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View style={styles.container}>
+  <KeyboardAvoidingView
+    style={styles.safeArea}
+    behavior={Platform.OS === "ios" ? "padding" : undefined}
+    keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+  >
+    <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom }]}>
           <View style={styles.backgroundCircleOne} />
           <View style={styles.backgroundCircleTwo} />
           <View style={styles.backgroundLeafOne} />
@@ -377,9 +400,11 @@ export default function HomeScreen() {
           )}
 
           <ScrollView
+            ref={scrollViewRef}
             style={styles.chatContainer}
             contentContainerStyle={styles.chatContent}
             showsVerticalScrollIndicator={false}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
             {!isLoggedIn && (
               <View style={styles.emptyState}>
@@ -467,10 +492,11 @@ export default function HomeScreen() {
                 {isLoading ? "..." : "Send"}
               </Text>
             </Pressable>
+            
           </View>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        
+    </KeyboardAvoidingView>
   );
 }
 
