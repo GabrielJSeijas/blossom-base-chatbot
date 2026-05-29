@@ -54,6 +54,14 @@ export function getMessagesCollection() {
 	return getDatabase().collection('messages');
 }
 
+export function getRiskAssessmentsCollection() {
+	return getDatabase().collection('risk_assessments');
+}
+
+export function getRiskAlertsCollection() {
+	return getDatabase().collection('risk_alerts');
+}
+
 export async function closeMongoConnection() {
 	if (!client) {
 		return;
