@@ -22,7 +22,21 @@ function getMistralApiKey() {
 }
 
 function getProvider() {
-	return normalizeProvider(process.env.LLM_PROVIDER) || (getMistralApiKey() ? 'mistral' : '');
+	const configuredProvider = normalizeProvider(process.env.LLM_PROVIDER);
+
+	if (configuredProvider === 'anthropic' || configuredProvider === 'openai' || configuredProvider === 'mistral') {
+		return configuredProvider;
+	}
+
+	if (process.env.ANTHROPIC_API_KEY) {
+		return 'anthropic';
+	}
+
+	if (getMistralApiKey()) {
+		return 'mistral';
+	}
+
+	return '';
 }
 
 export async function sendMessage(text) {
@@ -33,6 +47,10 @@ export async function sendMessage(text) {
 	}
 
 	const provider = getProvider();
+
+	if (process.env.SUPPRESS_STARTUP_LOGS !== 'true') {
+		console.log(`LLM provider seleccionado: ${provider || 'ninguno'}`);
+	}
 
 	if (provider === 'anthropic') {
 		const apiKey = process.env.ANTHROPIC_API_KEY;
