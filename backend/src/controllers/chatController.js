@@ -3,6 +3,8 @@ import { decryptMessage, encryptMessage } from '../crypto/messageCrypto.js';
 import { getMessagesCollection } from '../db/mongoClient.js';
 import { sendMessage } from '../llm/llmProvider.js';
 
+const MAX_LLM_CONTEXT_MESSAGES = 20;
+
 function parseUserId(res, userId) {
 	if (!userId) {
 		res.status(401).json({ error: 'Usuario no autenticado.' });
@@ -78,8 +80,18 @@ export async function chatController(req, res) {
 			updatedAt: now,
 		});
 
+		const storedConversationMessages = await messagesCollection
+			.find({ conversationId, userId: userObjectId })
+			.sort({ createdAt: 1, _id: 1 })
+			.toArray();
+
+		const conversationHistory = storedConversationMessages.slice(-MAX_LLM_CONTEXT_MESSAGES).map(messageDocument => ({
+			role: messageDocument.role,
+			content: decryptMessage(messageDocument.content),
+		}));
+
 		try {
-			const reply = await sendMessage(normalizedMessage);
+			const reply = await sendMessage(normalizedMessage, { history: conversationHistory });
 			const storedReply = encryptMessage(reply);
 			const replyNow = new Date();
 
@@ -94,6 +106,7 @@ export async function chatController(req, res) {
 
 			res.json({ response: reply, conversationId: String(conversationId) });
 		} catch (error) {
+			console.error('[CHAT] Error generando respuesta:', error?.message || error);
 			const fallbackReply = getAssistantFallbackMessage(error);
 			const fallbackNow = new Date();
 
@@ -112,6 +125,7 @@ export async function chatController(req, res) {
 			});
 		}
 	} catch (error) {
+		console.error('[CHAT] Error inesperado en chatController:', error?.message || error);
 		res.status(500).json({ error: error.message || 'Error procesando el chat.' });
 	}
 }
@@ -137,6 +151,7 @@ export async function getChatHistoryController(req, res) {
 
 		res.json({ messages, latestConversationId });
 	} catch (error) {
+		console.error('[CHAT] Error cargando historial:', error?.message || error);
 		res.status(500).json({ error: error.message || 'No se pudo cargar el historial.' });
 	}
 }
