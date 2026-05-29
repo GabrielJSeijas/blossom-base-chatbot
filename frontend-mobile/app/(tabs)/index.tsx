@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
 
@@ -438,16 +439,15 @@ export default function HomeScreen() {
                       : styles.botBubble,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.messageText,
-                      msg.sender === "user"
-                        ? styles.userMessageText
-                        : styles.botMessageText,
-                    ]}
-                  >
-                    {msg.text}
-                  </Text>
+                  {msg.sender === "bot" ? (
+                    <Markdown style={markdownStyles}>
+                      {msg.text}
+                    </Markdown>
+                  ) : (
+                    <Text style={[styles.messageText, styles.userMessageText]}>
+                      {msg.text}
+                    </Text>
+                  )}
                 </View>
               </View>
             ))}
@@ -499,6 +499,38 @@ export default function HomeScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+const markdownStyles = {
+  body: {
+    color: "#1D3458",
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  strong: {
+    fontWeight: "bold" as const,
+    color: "#1D3458",
+  },
+  em: {
+    fontStyle: "italic" as const,
+  },
+  bullet_list: {
+    marginVertical: 4,
+  },
+  ordered_list: {
+    marginVertical: 4,
+  },
+  list_item: {
+    marginBottom: 2,
+  },
+  code_inline: {
+    backgroundColor: "#E8EEF7",
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    fontFamily: "monospace",
+    fontSize: 13,
+    color: "#1D3458",
+  },
+};
 
 const styles = StyleSheet.create({
   safeArea: {
