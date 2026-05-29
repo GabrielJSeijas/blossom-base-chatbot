@@ -326,7 +326,6 @@ export async function getLatestRiskAssessmentController(req, res) {
 			shouldAlert: Boolean(item.risk?.shouldAlert),
 			summaryForModerator: item.risk?.summaryForModerator || '',
 			recommendedBotMode: item.risk?.recommendedBotMode || 'normal',
-			risk: formatRiskAssessmentDocument(item.risk),
 		}));
 
 		res.json({
