@@ -36,6 +36,8 @@ Para levantar y correr el backend es necesario seguir los siguientes pasos:
 
 El backend guarda las conversaciones en MongoDB con el contenido cifrado en reposo. El texto plano solo vive en memoria el tiempo necesario para consultar al LLM.
 
+Las colecciones de riesgo `risk_assessments` y `risk_alerts` también se guardan cifradas en reposo; solo permanecen en claro los metadatos necesarios para búsquedas y auditoría.
+
 ## Desarrolladores
 
 - Rosa Ramirez [@rvduque](https://github.com/rvduque) (Carnet 20-10527).

@@ -1,4 +1,5 @@
 import { ObjectId } from 'mongodb';
+import { decryptJson, encryptJson } from '../crypto/dataCrypto.js';
 import { decryptMessage, encryptMessage } from '../crypto/messageCrypto.js';
 import { getMessagesCollection, getRiskAlertsCollection, getRiskAssessmentsCollection, getUsersCollection } from '../db/mongoClient.js';
 import { classifyRisk } from '../llm/riskClassifier.js';
@@ -51,18 +52,20 @@ function formatRiskAssessmentDocument(document) {
 		return null;
 	}
 
+	const riskData = document.encryptedData ? decryptJson(document.encryptedData) : document;
+
 	return {
 		id: document._id ? String(document._id) : null,
 		userId: document.userId ? String(document.userId) : null,
 		conversationId: document.conversationId ? String(document.conversationId) : null,
-		message: document.message || null,
-		riskLevel: document.riskLevel || 'none',
-		categories: Array.isArray(document.categories) ? document.categories : [],
-		shouldAlert: Boolean(document.shouldAlert),
-		urgency: document.urgency || 'none',
-		confidence: Number(document.confidence || 0),
-		summaryForModerator: document.summaryForModerator || '',
-		recommendedBotMode: document.recommendedBotMode || 'normal',
+		message: riskData.message || null,
+		riskLevel: riskData.riskLevel || 'none',
+		categories: Array.isArray(riskData.categories) ? riskData.categories : [],
+		shouldAlert: Boolean(riskData.shouldAlert),
+		urgency: riskData.urgency || 'none',
+		confidence: Number(riskData.confidence || 0),
+		summaryForModerator: riskData.summaryForModerator || '',
+		recommendedBotMode: riskData.recommendedBotMode || 'normal',
 		createdAt: document.createdAt || null,
 		updatedAt: document.updatedAt || null,
 	};
@@ -82,11 +85,7 @@ function shouldCreateRiskAlert(riskAssessment) {
 
 async function saveRiskAssessment({ userObjectId, conversationId, message, riskAssessment }) {
 	const riskAssessmentsCollection = getRiskAssessmentsCollection();
-	const now = new Date();
-
-	const assessmentDocument = {
-		userId: userObjectId,
-		conversationId,
+	const riskPayload = {
 		message,
 		riskLevel: riskAssessment.risk_level,
 		categories: riskAssessment.categories,
@@ -95,6 +94,13 @@ async function saveRiskAssessment({ userObjectId, conversationId, message, riskA
 		confidence: riskAssessment.confidence,
 		summaryForModerator: riskAssessment.summary_for_moderator,
 		recommendedBotMode: riskAssessment.recommended_bot_mode,
+	};
+	const now = new Date();
+
+	const assessmentDocument = {
+		userId: userObjectId,
+		conversationId,
+		encryptedData: encryptJson(riskPayload),
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -103,15 +109,18 @@ async function saveRiskAssessment({ userObjectId, conversationId, message, riskA
 
 	if (shouldCreateRiskAlert(riskAssessment)) {
 		const riskAlertsCollection = getRiskAlertsCollection();
-
-		await riskAlertsCollection.insertOne({
-			userId: userObjectId,
-			conversationId,
+		const alertPayload = {
 			riskLevel: riskAssessment.risk_level,
 			urgency: riskAssessment.urgency,
 			categories: riskAssessment.categories,
 			summaryForModerator: riskAssessment.summary_for_moderator,
 			triggeringMessage: message,
+		};
+
+		await riskAlertsCollection.insertOne({
+			userId: userObjectId,
+			conversationId,
+			encryptedData: encryptJson(alertPayload),
 			status: 'open',
 			assignedTo: null,
 			createdAt: now,
@@ -193,14 +202,16 @@ export async function chatController(req, res) {
 				_id: null,
 				userId: userObjectId,
 				conversationId,
-				message: normalizedMessage,
-				riskLevel: riskAssessment.risk_level,
-				categories: riskAssessment.categories,
-				shouldAlert: riskAssessment.should_alert,
-				urgency: riskAssessment.urgency,
-				confidence: riskAssessment.confidence,
-				summaryForModerator: riskAssessment.summary_for_moderator,
-				recommendedBotMode: riskAssessment.recommended_bot_mode,
+				encryptedData: encryptJson({
+					message: normalizedMessage,
+					riskLevel: riskAssessment.risk_level,
+					categories: riskAssessment.categories,
+					shouldAlert: riskAssessment.should_alert,
+					urgency: riskAssessment.urgency,
+					confidence: riskAssessment.confidence,
+					summaryForModerator: riskAssessment.summary_for_moderator,
+					recommendedBotMode: riskAssessment.recommended_bot_mode,
+				}),
 				createdAt: null,
 				updatedAt: null,
 			};
