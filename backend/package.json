@@ -8,7 +8,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/index.js",
-    "demo": "node src/demo.js"
+    "demo": "node src/demo.js",
+    "migrate:risk-data": "node src/scripts/migrateRiskCollections.js"
   },
   "keywords": [],
   "author": "",
