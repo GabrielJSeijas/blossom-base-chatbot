@@ -9,10 +9,12 @@ import {
   Keyboard,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
 
 type ChatMessage = {
   sender: "user" | "bot";
@@ -32,6 +34,22 @@ type HistoryMessage = {
   conversationId: string;
   sender: ChatMessage["sender"];
   text: string;
+};
+
+type RiskAlert = {
+  id: string;
+  createdAt: string;
+  severity: "Alta" | "Crítica";
+  status: "Pendiente";
+  person: {
+    name: string;
+    email: string;
+    phone: string;
+    age: string;
+  };
+  summary: string;
+  triggerMessage: string;
+  recommendedAction: string;
 };
 
 const defaultMessages: ChatMessage[] = [
@@ -61,6 +79,25 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+const createDemoRiskAlert = (): RiskAlert => ({
+  id: `alert-${Date.now()}`,
+  createdAt: new Date().toLocaleString(),
+  severity: "Alta",
+  status: "Pendiente",
+  person: {
+    name: "Andrea Rodríguez",
+    email: "andrea.demo@blossom.local",
+    phone: "+58 412-0000000",
+    age: "24 años",
+  },
+  summary:
+    "El bot detectó lenguaje asociado con una posible situación de riesgo emocional.",
+  triggerMessage:
+    "No quiero seguir con esto. Siento que ya no puedo más.",
+  recommendedAction:
+    "Contactar a la persona, validar su seguridad inmediata y escalar el caso según el protocolo clínico.",
+});
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const [authMode, setAuthMode] = useState<AuthMode>("login");
@@ -82,7 +119,9 @@ export default function HomeScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [conversationId, setConversationId] = useState<string | null>(null);
-
+  const [alerts, setAlerts] = useState<RiskAlert[]>([]);
+  const [isAlertsOpen, setIsAlertsOpen] = useState(false);  
+  const [selectedAlert, setSelectedAlert] = useState<RiskAlert | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
@@ -211,6 +250,21 @@ export default function HomeScreen() {
     setShowIntro(true);
   };
 
+  const handleCreateDemoAlert = () => {
+    const newAlert = createDemoRiskAlert();
+
+    setAlerts((prev) => [newAlert, ...prev]);
+    setSelectedAlert(newAlert);
+  };
+
+  const handleDeleteAlert = (alertId: string) => {
+    setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+
+    setSelectedAlert((current) =>
+      current?.id === alertId ? null : current
+    );
+  };
+
   const sendMessage = async () => {
     if (!message.trim() || isLoading || !authToken) return;
 
@@ -304,8 +358,30 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{userLabel}</Text>
+            <View style={styles.headerActions}>
+              <Pressable
+                style={styles.notificationButton}
+                onPress={() => setIsAlertsOpen(true)}
+                accessibilityLabel="Abrir bandeja de alertas"
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={27}
+                  color="#FFFFFF"
+                />
+
+                {alerts.length > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {alerts.length > 9 ? "9+" : alerts.length}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{userLabel}</Text>
+              </View>
             </View>
           </View>
 
@@ -494,6 +570,207 @@ export default function HomeScreen() {
             </Pressable>
             
           </View>
+          <Modal
+            visible={isAlertsOpen}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setIsAlertsOpen(false)}
+          >
+            <View style={styles.modalBackdrop}>
+              <View
+                style={[
+                  styles.alertPanel,
+                  {
+                    paddingTop: insets.top + 18,
+                    paddingBottom: insets.bottom + 18,
+                  },
+                ]}
+              >
+                <View style={styles.alertHeader}>
+                  <View>
+                    <Text style={styles.alertHeaderTitle}>Alertas de riesgo</Text>
+                    <Text style={styles.alertHeaderSubtitle}>
+                      {alerts.length === 0
+                        ? "No hay casos pendientes"
+                        : `${alerts.length} ${
+                            alerts.length === 1 ? "caso pendiente" : "casos pendientes"
+                          }`}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={styles.closeAlertsButton}
+                    onPress={() => {
+                      setIsAlertsOpen(false);
+                      setSelectedAlert(null);
+                    }}
+                  >
+                    <Ionicons name="close" size={26} color="#1D3458" />
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  style={styles.createDemoAlertButton}
+                  onPress={handleCreateDemoAlert}
+                >
+                  <Ionicons name="add-circle-outline" size={21} color="#FFFFFF" />
+                  <Text style={styles.createDemoAlertButtonText}>
+                    Crear alerta de prueba
+                  </Text>
+                </Pressable>
+
+                {selectedAlert ? (
+                  <ScrollView
+                    style={styles.alertContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    <Pressable
+                      style={styles.backToAlertsButton}
+                      onPress={() => setSelectedAlert(null)}
+                    >
+                      <Ionicons name="arrow-back" size={19} color="#1D3458" />
+                      <Text style={styles.backToAlertsText}>Volver a la bandeja</Text>
+                    </Pressable>
+
+                    <View style={styles.alertDetailCard}>
+                      <View style={styles.alertDetailTopRow}>
+                        <View style={styles.criticalChip}>
+                          <Ionicons name="warning" size={16} color="#FFFFFF" />
+                          <Text style={styles.criticalChipText}>
+                            Riesgo {selectedAlert.severity.toLowerCase()}
+                          </Text>
+                        </View>
+
+                        <Text style={styles.alertDate}>
+                          {selectedAlert.createdAt}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.alertDetailTitle}>
+                        Persona posiblemente en riesgo
+                      </Text>
+
+                      <Text style={styles.alertDetailDescription}>
+                        {selectedAlert.summary}
+                      </Text>
+
+                      <View style={styles.personInformationCard}>
+                        <Text style={styles.informationSectionTitle}>
+                          Información de la persona
+                        </Text>
+
+                        <Text style={styles.informationLabel}>Nombre</Text>
+                        <Text style={styles.informationValue}>
+                          {selectedAlert.person.name}
+                        </Text>
+
+                        <Text style={styles.informationLabel}>Edad</Text>
+                        <Text style={styles.informationValue}>
+                          {selectedAlert.person.age}
+                        </Text>
+
+                        <Text style={styles.informationLabel}>Correo electrónico</Text>
+                        <Text style={styles.informationValue}>
+                          {selectedAlert.person.email}
+                        </Text>
+
+                        <Text style={styles.informationLabel}>Teléfono</Text>
+                        <Text style={styles.informationValue}>
+                          {selectedAlert.person.phone}
+                        </Text>
+                      </View>
+
+                      <View style={styles.triggerMessageCard}>
+                        <Text style={styles.informationSectionTitle}>
+                          Fragmento detectado
+                        </Text>
+
+                        <Text style={styles.triggerMessageText}>
+                          “{selectedAlert.triggerMessage}”
+                        </Text>
+                      </View>
+
+                      <View style={styles.recommendedActionCard}>
+                        <Text style={styles.informationSectionTitle}>
+                          Acción recomendada
+                        </Text>
+
+                        <Text style={styles.recommendedActionText}>
+                          {selectedAlert.recommendedAction}
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        style={styles.deleteAlertButton}
+                        onPress={() => handleDeleteAlert(selectedAlert.id)}
+                      >
+                        <Ionicons name="trash-outline" size={19} color="#FFFFFF" />
+                        <Text style={styles.deleteAlertButtonText}>
+                          Eliminar alerta
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </ScrollView>
+                ) : alerts.length === 0 ? (
+                  <View style={styles.emptyAlertsState}>
+                    <View style={styles.emptyAlertsIcon}>
+                      <Ionicons
+                        name="notifications-off-outline"
+                        size={35}
+                        color="#1D3458"
+                      />
+                    </View>
+
+                    <Text style={styles.emptyAlertsTitle}>
+                      No hay alertas pendientes
+                    </Text>
+
+                    <Text style={styles.emptyAlertsText}>
+                      Cuando el bot detecte una conversación de riesgo, aparecerá
+                      una notificación en esta bandeja.
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    style={styles.alertContent}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {alerts.map((alert) => (
+                      <Pressable
+                        key={alert.id}
+                        style={styles.alertListItem}
+                        onPress={() => setSelectedAlert(alert)}
+                      >
+                        <View style={styles.alertListIcon}>
+                          <Ionicons name="warning" size={22} color="#FFFFFF" />
+                        </View>
+
+                        <View style={styles.alertListInformation}>
+                          <View style={styles.alertListTopRow}>
+                            <Text style={styles.alertPersonName}>
+                              {alert.person.name}
+                            </Text>
+
+                            <Text style={styles.alertListDate}>
+                              {alert.createdAt}
+                            </Text>
+                          </View>
+
+                          <Text style={styles.alertListSummary} numberOfLines={2}>
+                            {alert.summary}
+                          </Text>
+
+                          <Text style={styles.alertListLink}>
+                            Ver información del caso
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+          </Modal>
         </View>
         
     </KeyboardAvoidingView>
@@ -827,4 +1104,305 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 15,
   },
+
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  notificationButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -3,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: "#E64C5D",
+    borderWidth: 2,
+    borderColor: "#1D3458",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  notificationBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+
+  alertPanel: {
+    flex: 1,
+    backgroundColor: "#F7F9FC",
+    paddingHorizontal: 20,
+  },
+
+  alertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+
+  alertHeaderTitle: {
+    color: "#1D3458",
+    fontSize: 26,
+    fontWeight: "800",
+  },
+
+  alertHeaderSubtitle: {
+    color: "#6D7890",
+    fontSize: 14,
+    marginTop: 3,
+  },
+
+  closeAlertsButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E4E9F1",
+  },
+
+  createDemoAlertButton: {
+    minHeight: 48,
+    borderRadius: 15,
+    backgroundColor: "#F48D84",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  createDemoAlertButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+
+  alertContent: {
+    flex: 1,
+  },
+
+  emptyAlertsState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
+
+  emptyAlertsIcon: {
+    width: 78,
+    height: 78,
+    borderRadius: 39,
+    backgroundColor: "#E8EEF7",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+
+  emptyAlertsTitle: {
+    color: "#1D3458",
+    fontSize: 21,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 7,
+  },
+
+  emptyAlertsText: {
+    color: "#6D7890",
+    textAlign: "center",
+    fontSize: 15,
+    lineHeight: 21,
+  },
+
+  alertListItem: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E4E9F1",
+    padding: 14,
+    marginBottom: 12,
+  },
+  
+  alertListIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#E64C5D",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  alertListInformation: {
+    flex: 1,
+  },
+  alertListTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  alertPersonName: {
+    flex: 1,
+    color: "#1D3458",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  alertListDate: {
+    color: "#8B95A8",
+    fontSize: 11,
+  },
+  alertListSummary: {
+    color: "#667085",
+    fontSize: 14,
+    lineHeight: 19,
+    marginTop: 5,
+  },
+  alertListLink: {
+    color: "#E56864",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 7,
+  },
+
+  backToAlertsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+  },
+  backToAlertsText: {
+    color: "#1D3458",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  alertDetailCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E4E9F1",
+    padding: 16,
+    marginBottom: 18,
+  },
+  alertDetailTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  criticalChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    backgroundColor: "#E64C5D",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  criticalChipText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  alertDate: {
+    color: "#8B95A8",
+    fontSize: 12,
+  },
+  alertDetailTitle: {
+    color: "#1D3458",
+    fontSize: 21,
+    fontWeight: "800",
+    marginTop: 16,
+  },
+  alertDetailDescription: {
+    color: "#667085",
+    fontSize: 15,
+    lineHeight: 21,
+    marginTop: 7,
+    marginBottom: 14,
+  },
+  personInformationCard: {
+    backgroundColor: "#F4F7FB",
+    borderRadius: 15,
+    padding: 14,
+    marginBottom: 12,
+  },
+  triggerMessageCard: {
+    backgroundColor: "#FFF2F1",
+    borderRadius: 15,
+    padding: 14,
+    marginBottom: 12,
+  },
+  recommendedActionCard: {
+    backgroundColor: "#EDF9E9",
+    borderRadius: 15,
+    padding: 14,
+    marginBottom: 16,
+  },
+  informationSectionTitle: {
+    color: "#1D3458",
+    fontWeight: "800",
+    fontSize: 15,
+    marginBottom: 8,
+  },
+  informationLabel: {
+    color: "#7A8496",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 7,
+  },
+  informationValue: {
+    color: "#1D3458",
+    fontSize: 15,
+    marginTop: 2,
+  },
+  triggerMessageText: {
+    color: "#7D3434",
+    fontSize: 15,
+    fontStyle: "italic",
+    lineHeight: 21,
+  },
+  recommendedActionText: {
+    color: "#315C30",
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  deleteAlertButton: {
+    minHeight: 48,
+    backgroundColor: "#E64C5D",
+    borderRadius: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+  },
+  deleteAlertButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+
 });
