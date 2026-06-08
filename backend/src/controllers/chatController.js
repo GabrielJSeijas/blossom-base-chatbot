@@ -1,11 +1,302 @@
 import { ObjectId } from 'mongodb';
 import { decryptJson, encryptJson } from '../crypto/dataCrypto.js';
 import { decryptMessage, encryptMessage } from '../crypto/messageCrypto.js';
-import { getMessagesCollection, getRiskAlertsCollection, getRiskAssessmentsCollection, getUsersCollection } from '../db/mongoClient.js';
+import {
+	getConversationsCollection,
+	getMessagesCollection,
+	getRiskAlertsCollection,
+	getRiskAssessmentsCollection,
+	getUsersCollection,
+} from '../db/mongoClient.js';
 import { classifyRisk } from '../llm/riskClassifier.js';
 import { sendMessage } from '../llm/llmProvider.js';
 
-const MAX_LLM_CONTEXT_MESSAGES = 20;
+const MAX_LLM_CONTEXT_MESSAGES = 8;
+const SUMMARY_MAX_BULLETS = 6;
+const SUMMARY_REBUILD_EVERY_MESSAGES = Number(process.env.CONVERSATION_SUMMARY_REBUILD_EVERY || 8);
+const RISK_DECAY_HOLD_MESSAGES = Number(process.env.RISK_DECAY_HOLD_MESSAGES || 5);
+const RISK_DECAY_STEP_MESSAGES = Number(process.env.RISK_DECAY_STEP_MESSAGES || 5);
+const RISK_DECAY_LOOKBACK_MESSAGES = Number(process.env.RISK_DECAY_LOOKBACK_MESSAGES || 40);
+const RISK_LEVEL_SCORES = {
+	none: 0,
+	low: 1,
+	medium: 2,
+	high: 3,
+	critical: 4,
+};
+
+function normalizeTextSnippet(text, maxLength = 140) {
+	return String(text || '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, maxLength);
+}
+
+function getRiskLevelScore(level) {
+	return RISK_LEVEL_SCORES[String(level || '').trim().toLowerCase()] ?? 0;
+}
+
+function scoreToRiskLevel(score) {
+	if (score >= 4) {
+		return 'critical';
+	}
+
+	if (score === 3) {
+		return 'high';
+	}
+
+	if (score === 2) {
+		return 'medium';
+	}
+
+	if (score === 1) {
+		return 'low';
+	}
+
+	return 'none';
+}
+
+function normalizeUrgencyValue(value) {
+	const normalizedValue = String(value || '').trim().toLowerCase();
+	const allowed = new Set(['none', 'routine', 'soon', 'immediate']);
+
+	return allowed.has(normalizedValue) ? normalizedValue : 'none';
+}
+
+function getUrgencyScore(urgency) {
+	const scores = {
+		none: 0,
+		routine: 1,
+		soon: 2,
+		immediate: 3,
+	};
+
+	return scores[normalizeUrgencyValue(urgency)] ?? 0;
+}
+
+function maxUrgency(a, b) {
+	return getUrgencyScore(a) >= getUrgencyScore(b) ? normalizeUrgencyValue(a) : normalizeUrgencyValue(b);
+}
+
+function getMinimumUrgencyForRiskLevel(level) {
+	if (level === 'critical') {
+		return 'immediate';
+	}
+
+	if (level === 'high') {
+		return 'soon';
+	}
+
+	if (level === 'medium') {
+		return 'soon';
+	}
+
+	if (level === 'low') {
+		return 'routine';
+	}
+
+	return 'none';
+}
+
+function normalizeRiskAssessmentShape(riskAssessment) {
+	return {
+		risk_level: scoreToRiskLevel(getRiskLevelScore(riskAssessment?.risk_level)),
+		categories: Array.isArray(riskAssessment?.categories)
+			? riskAssessment.categories.map(item => String(item || '').trim()).filter(Boolean).slice(0, 12)
+			: [],
+		should_alert: Boolean(riskAssessment?.should_alert),
+		urgency: normalizeUrgencyValue(riskAssessment?.urgency),
+		confidence: Number.isFinite(Number(riskAssessment?.confidence)) ? Number(riskAssessment.confidence) : 0,
+		summary_for_moderator: String(riskAssessment?.summary_for_moderator || '').trim(),
+		recommended_bot_mode: String(riskAssessment?.recommended_bot_mode || 'normal').trim().toLowerCase(),
+	};
+}
+
+function buildConversationSummaryFromMessages(messages) {
+	if (!Array.isArray(messages) || messages.length === 0) {
+		return '';
+	}
+
+	const userSnippets = [];
+	const assistantSnippets = [];
+
+	for (const messageDocument of messages) {
+		const content = normalizeTextSnippet(decryptMessage(messageDocument.content));
+
+		if (!content) {
+			continue;
+		}
+
+		if (messageDocument.role === 'assistant') {
+			assistantSnippets.push(content);
+		} else {
+			userSnippets.push(content);
+		}
+	}
+
+	if (userSnippets.length === 0 && assistantSnippets.length === 0) {
+		return '';
+	}
+
+	const summaryLines = [];
+	const latestUserSnippets = userSnippets.slice(-SUMMARY_MAX_BULLETS);
+	const latestAssistantSnippets = assistantSnippets.slice(-3);
+
+	if (latestUserSnippets.length > 0) {
+		summaryLines.push('Temas recientes del usuario:');
+		for (const snippet of latestUserSnippets) {
+			summaryLines.push(`- ${snippet}`);
+		}
+	}
+
+	if (latestAssistantSnippets.length > 0) {
+		summaryLines.push('Apoyo previo del asistente:');
+		for (const snippet of latestAssistantSnippets) {
+			summaryLines.push(`- ${snippet}`);
+		}
+	}
+
+	return summaryLines.join('\n').slice(0, 1200);
+}
+
+function formatConversationSummaryDocument(document) {
+	if (!document) {
+		return {
+			summaryText: '',
+			summaryMessageCount: 0,
+		};
+	}
+
+	const summaryData = document.encryptedData ? decryptJson(document.encryptedData) : document;
+
+	return {
+		summaryText: String(summaryData.summaryText || '').trim(),
+		summaryMessageCount: Number(summaryData.summaryMessageCount || 0),
+	};
+}
+
+async function getConversationSummaryState(conversationId, userObjectId) {
+	const conversationsCollection = getConversationsCollection();
+	const conversationDocument = await conversationsCollection.findOne({
+		_id: conversationId,
+		userId: userObjectId,
+	});
+
+	return formatConversationSummaryDocument(conversationDocument);
+}
+
+async function saveConversationSummary({ conversationId, userObjectId, summaryText, summaryMessageCount }) {
+	const conversationsCollection = getConversationsCollection();
+	const now = new Date();
+
+	await conversationsCollection.updateOne(
+		{ _id: conversationId, userId: userObjectId },
+		{
+			$set: {
+				userId: userObjectId,
+				encryptedData: encryptJson({
+					summaryText,
+					summaryMessageCount,
+				}),
+				updatedAt: now,
+			},
+			$setOnInsert: {
+				createdAt: now,
+			},
+		},
+		{ upsert: true }
+	);
+}
+
+async function getRecentRiskAssessmentsForUser(userObjectId) {
+	const riskAssessmentsCollection = getRiskAssessmentsCollection();
+
+	return riskAssessmentsCollection
+		.find({ userId: userObjectId })
+		.sort({ createdAt: -1, _id: -1 })
+		.limit(Math.max(RISK_DECAY_LOOKBACK_MESSAGES, 1))
+		.toArray();
+}
+
+function countStableMessagesForDecay(previousRiskAssessments, anchorScore) {
+	if (!Array.isArray(previousRiskAssessments) || previousRiskAssessments.length < 2) {
+		return 0;
+	}
+
+	let stableCount = 0;
+
+	for (let index = 1; index < previousRiskAssessments.length; index += 1) {
+		const assessment = previousRiskAssessments[index];
+		const score = getRiskLevelScore(assessment?.riskLevel);
+
+		if (score >= anchorScore) {
+			break;
+		}
+
+		stableCount += 1;
+	}
+
+	return stableCount;
+}
+
+function applyRiskCooldown(riskAssessment, previousRiskAssessments) {
+	const current = normalizeRiskAssessmentShape(riskAssessment);
+	const previousRiskAssessment = Array.isArray(previousRiskAssessments) ? previousRiskAssessments[0] : null;
+
+	if (!previousRiskAssessment) {
+		return current;
+	}
+
+	const previousLevel = String(previousRiskAssessment.riskLevel || 'none').toLowerCase();
+	const previousLevelScore = getRiskLevelScore(previousLevel);
+	const incomingLevelScore = getRiskLevelScore(current.risk_level);
+
+	if (incomingLevelScore >= previousLevelScore || previousLevelScore < getRiskLevelScore('high')) {
+		return current;
+	}
+
+	const stableMessagesBeforeCurrent = countStableMessagesForDecay(previousRiskAssessments, previousLevelScore);
+	const stableMessagesIncludingCurrent = stableMessagesBeforeCurrent + 1;
+	let maxDrop = 0;
+
+	if (stableMessagesIncludingCurrent > RISK_DECAY_HOLD_MESSAGES) {
+		const messagesAfterHold = stableMessagesIncludingCurrent - RISK_DECAY_HOLD_MESSAGES;
+		maxDrop = 1 + Math.floor((messagesAfterHold - 1) / Math.max(RISK_DECAY_STEP_MESSAGES, 1));
+	}
+
+	const allowedScore = Math.max(previousLevelScore - maxDrop, incomingLevelScore);
+
+	if (allowedScore === incomingLevelScore) {
+		return current;
+	}
+
+	const adjustedLevel = scoreToRiskLevel(allowedScore);
+	const adjustedUrgency = maxUrgency(current.urgency, getMinimumUrgencyForRiskLevel(adjustedLevel));
+	const mergedCategories = Array.from(
+		new Set([...(previousRiskAssessment.categories || []), ...(current.categories || [])])
+	).slice(0, 12);
+
+	return {
+		...current,
+		risk_level: adjustedLevel,
+		urgency: adjustedUrgency,
+		should_alert: getRiskLevelScore(adjustedLevel) >= getRiskLevelScore('medium'),
+		categories: mergedCategories,
+		recommended_bot_mode:
+			getRiskLevelScore(adjustedLevel) >= getRiskLevelScore('high')
+				? 'crisis'
+				: getRiskLevelScore(adjustedLevel) >= getRiskLevelScore('low')
+					? 'supportive'
+					: 'normal',
+		summary_for_moderator: [
+			current.summary_for_moderator,
+			`Se mantiene vigilancia por antecedente reciente de riesgo ${previousLevel}.`,
+		]
+			.filter(Boolean)
+			.join(' ')
+			.trim(),
+	};
+}
 
 function parseUserId(res, userId) {
 	if (!userId) {
@@ -170,17 +461,50 @@ export async function chatController(req, res) {
 			.find({ conversationId, userId: userObjectId })
 			.sort({ createdAt: 1, _id: 1 })
 			.toArray();
+		const olderMessages = storedConversationMessages.slice(0, -MAX_LLM_CONTEXT_MESSAGES);
+		let { summaryText, summaryMessageCount } = await getConversationSummaryState(conversationId, userObjectId);
+
+		if (olderMessages.length > 0) {
+			const shouldRebuildSummary =
+				!summaryText ||
+				storedConversationMessages.length - summaryMessageCount >= SUMMARY_REBUILD_EVERY_MESSAGES;
+
+			if (shouldRebuildSummary) {
+				summaryText = buildConversationSummaryFromMessages(olderMessages);
+				summaryMessageCount = storedConversationMessages.length;
+
+				await saveConversationSummary({
+					conversationId,
+					userObjectId,
+					summaryText,
+					summaryMessageCount,
+				});
+			}
+		}
 
 		const conversationHistory = storedConversationMessages.slice(-MAX_LLM_CONTEXT_MESSAGES).map(messageDocument => ({
 			role: messageDocument.role,
 			content: decryptMessage(messageDocument.content),
 		}));
 
+		if (summaryText) {
+			conversationHistory.unshift({
+				role: 'assistant',
+				content: `Resumen contextual previo: ${summaryText}`,
+			});
+		}
+
+		const previousRiskDocuments = await getRecentRiskAssessmentsForUser(userObjectId);
+		const previousRiskAssessments = previousRiskDocuments
+			.map(document => formatRiskAssessmentDocument(document))
+			.filter(Boolean);
+
 		let riskAssessment = null;
 		let savedRiskAssessment = null;
 
 		try {
 			riskAssessment = await classifyRisk(normalizedMessage, conversationHistory);
+			riskAssessment = applyRiskCooldown(riskAssessment, previousRiskAssessments);
 			savedRiskAssessment = await saveRiskAssessment({
 				userObjectId,
 				conversationId,
@@ -189,15 +513,18 @@ export async function chatController(req, res) {
 			});
 		} catch (error) {
 			console.error('[RISK] No se pudo clasificar o guardar el riesgo:', error?.message || error);
-			riskAssessment = {
-				risk_level: 'none',
-				categories: [],
-				should_alert: false,
-				urgency: 'none',
-				confidence: 0,
-				summary_for_moderator: 'No disponible por error interno.',
-				recommended_bot_mode: 'normal',
-			};
+			riskAssessment = applyRiskCooldown(
+				{
+					risk_level: 'none',
+					categories: [],
+					should_alert: false,
+					urgency: 'none',
+					confidence: 0,
+					summary_for_moderator: 'No disponible por error interno.',
+					recommended_bot_mode: 'normal',
+				},
+				previousRiskAssessments
+			);
 			savedRiskAssessment = {
 				_id: null,
 				userId: userObjectId,
@@ -328,16 +655,20 @@ export async function getLatestRiskAssessmentController(req, res) {
 
 		const groupedRisks = await riskAssessmentsCollection.aggregate(pipeline).toArray();
 
-		const alerts = groupedRisks.map(item => ({
-			userId: item.userId ? String(item.userId) : null,
-			userLabel: formatUserLabel(item.user, item.userId),
-			riskLevel: item.risk?.riskLevel || 'none',
-			urgency: item.risk?.urgency || 'none',
-			categories: Array.isArray(item.risk?.categories) ? item.risk.categories : [],
-			shouldAlert: Boolean(item.risk?.shouldAlert),
-			summaryForModerator: item.risk?.summaryForModerator || '',
-			recommendedBotMode: item.risk?.recommendedBotMode || 'normal',
-		}));
+		const alerts = groupedRisks.map(item => {
+			const formattedRisk = formatRiskAssessmentDocument(item.risk);
+
+			return {
+				userId: item.userId ? String(item.userId) : null,
+				userLabel: formatUserLabel(item.user, item.userId),
+				riskLevel: formattedRisk?.riskLevel || 'none',
+				urgency: formattedRisk?.urgency || 'none',
+				categories: Array.isArray(formattedRisk?.categories) ? formattedRisk.categories : [],
+				shouldAlert: Boolean(formattedRisk?.shouldAlert),
+				summaryForModerator: formattedRisk?.summaryForModerator || '',
+				recommendedBotMode: formattedRisk?.recommendedBotMode || 'normal',
+			};
+		});
 
 		res.json({
 			count: alerts.length,
