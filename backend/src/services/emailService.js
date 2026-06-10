@@ -1,8 +1,4 @@
-import Brevo from '@getbrevo/brevo';
-
-const apiInstance = new Brevo.TransactionalEmailsApi();
-
-apiInstance.setApiKey(Brevo.TransactionalEmailsApi.ApiKeyAuthScenario.apiKey, process.env.BREVO_API_KEY);
+import axios from 'axios';
 
 export async function sendRiskAlertEmail({
   userId,
@@ -14,7 +10,21 @@ export async function sendRiskAlertEmail({
   summaryForModerator,
   recommendedBotMode
 }) {
-  const sendSmtpEmail = {
+  const emailData = {
+    sender: {
+      name: "Blossom IA",
+      email: "info@somosblossom.com"
+    },
+    to: [
+      {
+        email: "isealuis.miguel@gmail.com",
+        name: "Luis Isea"
+      },
+      {
+        email: "gabrieljseijas@gmail.com",
+        name: "Gabriel Seijas"
+      }
+    ],
     subject: `⚠️ ALERTA DE RIESGO: Nivel ${riskLevel.toUpperCase()} detectado`,
     htmlContent: `
       <html>
@@ -46,38 +56,31 @@ export async function sendRiskAlertEmail({
               </tr>
             </table>
 
-          <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
-            <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
-            <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
-          </div>
+            <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
+              <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
+              <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
+            </div>
 
             <p style="font-size: 12px; color: #777; margin-top: 25px; text-align: center;">Este es un mensaje automático generado por el sistema de monitorización de Blossom IA.</p>
           </div>
         </body>
       </html>
-    `,
-    sender: {
-      name: "Blossom IA",
-      email: "info@somosblossom.com"
-    },
-    to: [
-      {
-        email: "isealuis.miguel@gmail.com",
-        name: "Luis Isea"
-      },
-      {
-        email: "gabrieljseijas@gmail.com",
-        name: "Gabriel Seijas"
-      }
-    ]
+    `
   };
 
   try {
-    const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log(`✉️ Correo de alerta enviado exitosamente a Luis y Gabriel:`, data.messageId);
-    return data;
+    const response = await axios.post('https://api.brevo.com/v3/smtp/email', emailData, {
+      headers: {
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'api-key': process.env.BREVO_API_KEY
+      }
+    });
+
+    console.log(`✉️ Correo enviado vía API REST de Brevo con éxito. Message-ID:`, response.data.messageId);
+    return response.data;
   } catch (error) {
-    console.error('❌ Error enviando correo a través de Brevo:', error?.response?.body || error?.message || error);
+    console.error('❌ Error crítico en el POST directo a Brevo:', error.response?.data || error.message);
     throw error;
   }
 }

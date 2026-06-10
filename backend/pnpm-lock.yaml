@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@getbrevo/brevo':
-        specifier: ^5.0.4
-        version: 5.0.4
       axios:
         specifier: ^1.16.1
         version: 1.16.1
@@ -28,10 +25,6 @@ importers:
         version: 7.2.0
 
 packages:
-
-  '@getbrevo/brevo@5.0.4':
-    resolution: {integrity: sha512-wN4mHE6O0Pb/d/Dh3E4MAm2zCHbLLUcFF8/wgwTeMPy9KzHBYLu7S/nsJbzd0AWL09MHn8vwue8ULL9YOzluOQ==}
-    engines: {node: '>=18.0.0'}
 
   '@mongodb-js/saslprep@1.4.11':
     resolution: {integrity: sha512-o9rAHc0IpIjuPSxRutWpE1F62x7n+4mVS4rCNHkzhIUMQcc18bb6xEq5wd2NdN0WjepIyXIppRshYI2kQDOZVA==}
@@ -425,8 +418,6 @@ packages:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
 snapshots:
-
-  '@getbrevo/brevo@5.0.4': {}
 
   '@mongodb-js/saslprep@1.4.11':
     dependencies:
