@@ -1,4 +1,4 @@
-import { TransactionalEmailsApi, SendSmtpEmail } from '@getbrevo/brevo';
+import { TransactionalEmailsApi } from '@getbrevo/brevo';
 
 const apiInstance = new TransactionalEmailsApi();
 
@@ -14,70 +14,63 @@ export async function sendRiskAlertEmail({
   summaryForModerator,
   recommendedBotMode
 }) {
-  const sendSmtpEmail = new SendSmtpEmail();
+  const sendSmtpEmail = {
+    subject: `⚠️ ALERTA DE RIESGO: Nivel ${riskLevel.toUpperCase()} detectado`,
+    htmlContent: `
+      <html>
+        <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; background-color: #f9f9f9; padding: 20px;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; border-top: 4px solid #d9534f; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <h2 style="color: #d9534f; margin-top: 0;">Alerta de Seguridad - Blossom IA</h2>
+            <p>Se ha detectado un evento que requiere revisión por parte del equipo de moderación.</p>
 
-  // Asunto dinámico según el nivel de riesgo
-  sendSmtpEmail.subject = `⚠️ ALERTA DE RIESGO: Nivel ${riskLevel.toUpperCase()} detectado`;
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <tr>
+                <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd; width: 35%;">Usuario:</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${userLabel} (ID: ${userId})</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Nivel de Riesgo:</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;"><span style="background-color: #d9534f; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${riskLevel.toUpperCase()}</span></td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Urgencia:</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${urgency.toUpperCase()}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Categorías:</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${categories.join(', ') || 'Ninguna'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Modo del Bot:</td>
+                <td style="padding: 8px; border-bottom: 1px solid #ddd;">${recommendedBotMode}</td>
+              </tr>
+            </table>
 
-  // Contenido HTML de la alerta
-  sendSmtpEmail.htmlContent = `
-    <html>
-      <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6; background-color: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 20px; border-radius: 8px; border-top: 4px solid #d9534f; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <h2 style="color: #d9534f; margin-top: 0;">Alerta de Seguridad - Blossom IA</h2>
-          <p>Se ha detectado un evento que requiere revisión por parte del equipo de moderación.</p>
+            <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
+              <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
+              <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
+            </div>
 
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <tr>
-              <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd; width: 35%;">Usuario:</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${userLabel} (ID: ${userId})</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Nivel de Riesgo:</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;"><span style="background-color: #d9534f; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${riskLevel.toUpperCase()}</span></td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Urgencia:</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${urgency.toUpperCase()}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Categorías:</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${categories.join(', ') || 'Ninguna'}</td>
-            </tr>
-            <tr>
-              <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #ddd;">Modo del Bot:</td>
-              <td style="padding: 8px; border-bottom: 1px solid #ddd;">${recommendedBotMode}</td>
-            </tr>
-          </table>
-
-          <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
-            <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
-            <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
+            <p style="font-size: 12px; color: #777; margin-top: 25px; text-align: center;">Este es un mensaje automático generado por el sistema de monitorización de Blossom IA.</p>
           </div>
-
-          <p style="font-size: 12px; color: #777; margin-top: 25px; text-align: center;">Este es un mensaje automático generado por el sistema de monitorización de Blossom IA.</p>
-        </div>
-      </body>
-    </html>
-  `;
-
-  // Remitente oficial configurado
-  sendSmtpEmail.sender = {
-    name: "Blossom IA",
-    email: "info@somosblossom.com"
-  };
-
-  // Lista de correos del equipo de desarrollo/moderación
-  sendSmtpEmail.to = [
-    {
-      email: "isealuis.miguel@gmail.com",
-      name: "Luis Isea"
+        </body>
+      </html>
+    `,
+    sender: {
+      name: "Blossom IA",
+      email: "info@somosblossom.com"
     },
-    {
-      email: "gabrieljseijas@gmail.com",
-      name: "Gabriel Seijas"
-    }
-  ];
+    to: [
+      {
+        email: "isealuis.miguel@gmail.com",
+        name: "Luis Isea"
+      },
+      {
+        email: "gabrieljseijas@gmail.com",
+        name: "Gabriel Seijas"
+      }
+    ]
+  };
 
   try {
     const data = await apiInstance.sendTransacEmail(sendSmtpEmail);
