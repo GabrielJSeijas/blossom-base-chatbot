@@ -1,8 +1,8 @@
-import { TransactionalEmailsApi } from '@getbrevo/brevo';
+import Brevo from '@getbrevo/brevo';
 
-const apiInstance = new TransactionalEmailsApi();
+const apiInstance = new Brevo.TransactionalEmailsApi();
 
-apiInstance.setApiKey(TransactionalEmailsApi.ApiKeyAuthScenario.apiKey, process.env.BREVO_API_KEY);
+apiInstance.setApiKey(Brevo.TransactionalEmailsApi.ApiKeyAuthScenario.apiKey, process.env.BREVO_API_KEY);
 
 export async function sendRiskAlertEmail({
   userId,
@@ -46,10 +46,10 @@ export async function sendRiskAlertEmail({
               </tr>
             </table>
 
-            <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
-              <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
-              <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
-            </div>
+          <div style="background-color: #f2dede; color: #a94442; padding: 15px; border-radius: 4px; border: 1px solid #ebccd1; margin-top: 15px;">
+            <h3 style="margin-top: 0; color: #a94442;">Resumen para Moderación:</h3>
+            <p style="font-style: italic; margin-bottom: 0; white-space: pre-line;">"${summaryForModerator}"</p>
+          </div>
 
             <p style="font-size: 12px; color: #777; margin-top: 25px; text-align: center;">Este es un mensaje automático generado por el sistema de monitorización de Blossom IA.</p>
           </div>
