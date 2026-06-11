@@ -21,7 +21,7 @@ export async function sendRiskAlertEmail({
         name: "Luis Isea"
       },
       {
-        email: "gabrieljseijas@gmail.com",
+        email: "seijasvillaltagabriel@gmail.com",
         name: "Gabriel Seijas"
       }
     ],
