@@ -23,6 +23,10 @@ export async function sendRiskAlertEmail({
       {
         email: "seijasvillaltagabriel@gmail.com",
         name: "Gabriel Seijas"
+      },
+      {
+        email: "info@somosblossom.com",
+        name: "Blossom IA",
       }
     ],
     subject: `⚠️ ALERTA DE RIESGO: Nivel ${riskLevel.toUpperCase()} detectado`,
