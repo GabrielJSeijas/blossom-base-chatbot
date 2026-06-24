@@ -1,0 +1,66 @@
+name: Blossom Backend - Guardrails & Integration Tests
+
+on:
+  push:
+    branches: ["main", "backend/core"]
+    paths:
+      # Only run tests when backend files are changed
+      - "backend/**"
+  pull_request:
+    branches: ["main"]
+    paths:
+      # Only run tests when backend files are changed
+      - "backend/**"
+
+jobs:
+  test:
+    name: Run Vitest Suite (HU-13)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 10
+          run_install: false
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT  # ← Cambiamos a GITHUB_OUTPUT
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/backend/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Vitest Suite (44 tests - HU-13 Guardrails)
+        run: pnpm test
+        env:
+          NODE_ENV: test
+          SUPPRESS_STARTUP_LOGS: true
+          MESSAGE_ENC_KEY_V1: YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=
+          AUTH_TOKEN_SECRET: ci-test-secret-key-blossom
+          MONGODB_URI: mongodb://localhost:27017/blossom_ci
+          MONGODB_DB_NAME: blossom_ci
+          ANTHROPIC_API_KEY: ci-dummy-key
+          LLM_PROVIDER: anthropic

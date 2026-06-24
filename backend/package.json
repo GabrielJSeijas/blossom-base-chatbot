@@ -6,7 +6,9 @@
   "packageManager": "pnpm@10.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "start": "node src/index.js",
     "demo": "node src/demo.js",
     "migrate:risk-data": "node src/scripts/migrateRiskCollections.js"
@@ -20,5 +22,10 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mongodb": "^7.2.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.9",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.9"
   }
 }
